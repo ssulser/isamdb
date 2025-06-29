@@ -2,81 +2,93 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <stdbool.h>
 
-#include "isam.h"
+#include "../include/isam.h"
 
-static ISAMFILE isam[2] = {
-    { .fp = NULL, .rec_len = 0, .is_open = false }, // fd 0 - perhaps control file
-    { .fp = NULL, .rec_len = 0, .is_open = false }  // fd 1
-};
 
-int isam_open(int fd, char const *filename, size_t len) {
-    assert (fd == 1);
+static ISAMFILE isam[MAX_ISAM_FILES];
+
+
+int isam_open(int fd, char const *filename, size_t rec_len) {
+    if (fd < 0 || fd >= MAX_ISAM_FILES)
+        return -1;
+
     FILE *fp = fopen(filename, "r+b");
     if (!fp)
         fp = fopen(filename, "w+b");
     if (!fp) {
         printf("Could not open file '%s'\n", filename);
-        return -1;
+        return -2;
     }
     isam[fd].fp = fp;
     isam[fd].is_open = true;
-    isam[fd].rec_len = len;
+    isam[fd].rec_len = rec_len;
     return 0;
 }
 
 
 int isam_close(int fd) {
-    assert (fd == 1);
+    if (fd < 0 || fd >= MAX_ISAM_FILES)
+        return -1;
     fclose(isam[fd].fp);
     isam[fd].is_open = false;
-    isam[fd].rec_len = 0;
+    return 0;
 }
 
-
-int isam_write(int fd, int rec_pos, void const *data, size_t len) {
+/* return codes:                                      */
+/*   0 : no error                                     */
+/*  -1 : argument error                               */
+/*  -2 : file not opened                              */
+/*  -3 : error writing record                         */
+int isam_write(int fd, int rec_pos, void const *data, serialize_func serialize) {
     size_t bytes;
 
-    assert (fd == 1);
-    assert (isam[fd].is_open);
-    assert (isam[fd].rec_len == len);
-
-    rec_pos -= 1;   // start at 0 == 1 for user
-
-    UBYTE *buffer = (UBYTE*) malloc(len);
-    isam_serialize(data, buffer, len);
-    fseek(isam[fd].fp, len * rec_pos, SEEK_SET);
-    bytes = fwrite(buffer, len, 1, isam[fd].fp);
-    if (bytes != 1) {
-        printf("Error on writing Record %d. Should be %lu bytes, was %lu bytes.\n", rec_pos, len, bytes);
-        free(buffer);
+    if (fd < 0 || fd >= MAX_ISAM_FILES)
         return -1;
+
+    if (!isam[fd].is_open)
+        return -2;
+    serialize(data, isam[fd].rec_buf, isam[fd].rec_len);
+    fseek(isam[fd].fp, isam[fd].rec_len * rec_pos, SEEK_SET);
+    bytes = fwrite(isam[fd].rec_buf, isam[fd].rec_len, 1, isam[fd].fp);
+    if (bytes != 1) {
+        #if DEBUG
+            printf("Error on writing Record %d.\n", rec_pos);
+        #endif
+        return -3;
     }
-    printf("Record %d successfully written with %ld bytes\n", rec_pos, len);
-    free(buffer);
+    #if DEBUG
+        printf("Record %d successfully written with %d bytes\n", rec_pos, isam[fd].rec_len);
+    #endif
     return 0;
 }
 
 
-int isam_read(int fd, int rec_pos, void *data, size_t len) {
+/* return codes:                                      */
+/*   0 : no error                                     */
+/*  -1 : argument error                               */
+/*  -2 : file not opened                              */
+/*  -3 : error writing record                         */
+int isam_read(int fd, int rec_pos, void *data, deserialize_func deserialize) {
     size_t bytes;
 
-    assert (fd == 1);
-    assert (isam[fd].is_open);
-    assert (isam[fd].rec_len == len);
+    if (fd < 0 || fd >= MAX_ISAM_FILES)
+        return -1;
 
-    rec_pos -= 1; // start at 0 == 1 for user
+    if (!isam[fd].is_open)
+        return -2;
 
-    UBYTE *buffer = (UBYTE*) malloc(len);
-    fseek(isam[fd].fp, len * rec_pos, SEEK_SET);
-    bytes = fread(buffer, len, 1, isam[fd].fp);
+    fseek(isam[fd].fp, isam[fd].rec_len * rec_pos, SEEK_SET);
+    bytes = fread(isam[fd].rec_buf, isam[fd].rec_len, 1, isam[fd].fp);
     if (bytes != 1) {
-        printf("Error on reading Record %d.", rec_pos);
-        free (buffer);
-        return 1;
+        #if DEBUG
+            printf("Error on reading Record %d.", rec_pos);
+        #endif
+        return -3;
     }
-    isam_deserialize(data, buffer, len);
-    free (buffer);
+    deserialize(data, isam[fd].rec_buf, isam[fd].rec_len);
+    #if DEBUG
+        printf("Record %d successfully read with %d bytes\n", rec_pos, isam[fd].rec_len);
+    #endif
     return 0;
 }

@@ -1,6 +1,7 @@
 # compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -Iinclude -MMD -MP
+CFLAGS = -Wall -Wextra -std=c89 -Iinclude -MMD -MP
+DEBUG = -g -DDEBUG=1
 
 # Zielprogramm
 TARGET = main
@@ -15,11 +16,11 @@ all: $(TARGET)
 
 #Linken
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(DEBUG) -o $@ $^
 
 # Kompilieren mit automatischen Abhängigkeitsdateien
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEBUG) -c $< -o $@
 
 
 .phony: clean

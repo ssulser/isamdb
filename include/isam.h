@@ -1,24 +1,24 @@
 #pragma once
 
-#define STRLEN 30
+#define MAX_BUFFER_SIZE 256
+#define MAX_ISAM_FILES 2
 
-#define ISAM_WRITE(type, file_id, rec_num, ptr)              \
-    do {                                                     \
-        __uint8_t __buf__[sizeof(type)];                     \
-        serialize_##type((const type *)(ptr), __buf__);      \
-        isam_write(file_id, rec_num, __buf__, sizeof(type)); \
-    } while(0);
+typedef unsigned char ubyte;
 
-typedef unsigned char UBYTE;
+typedef enum { false, true } bool;
 
 typedef struct {
-    FILE    *fp;
-    size_t  rec_len;
-    bool    is_open;
+    FILE      *fp;                            /* FILE pointer */
+    int       rec_len;                        /* length of record */
+    ubyte     rec_buf[MAX_BUFFER_SIZE];       /* buffer for record data */
+    bool      is_open;                        /* is file open? */
 } ISAMFILE;
 
-// function declarations
-int isam_open(int fd, char const *filename, size_t len);
+typedef void (*serialize_func)(void const *src, ubyte *dest, int len);
+typedef void (*deserialize_func)(void *dest, ubyte const *src, int len);
+
+/* function declarations */
+int isam_write(int fd, int rec_pos, void const *data, serialize_func serialize);
+int isam_read(int fd, int rec_pos, void *data, deserialize_func deserialize);
 int isam_close(int fd);
-int isam_write(int fd, int rec_pos, void const *data, size_t len);
-int isam_read(int fd, int rec_pos, void *data, size_t len);
+int isam_open(int fd, char const *filename, size_t rec_len);

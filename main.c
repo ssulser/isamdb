@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "include/isam.h"
+
+#define STRLEN 30
 
 typedef struct {
     char name[STRLEN];
@@ -10,7 +13,7 @@ typedef struct {
 } Record;
 
 
-void isam_serialize(Record const *src, UBYTE *buffer, size_t len) {
+void Record_serialize(Record const *src, ubyte *buffer, int len) {
     long num;
 
     memcpy(buffer, src->name, STRLEN);
@@ -28,7 +31,7 @@ void isam_serialize(Record const *src, UBYTE *buffer, size_t len) {
     buffer[STRLEN+7] = (num >>24) & 0xFF;
 }
 
-void isam_deserialize(Record *dest, UBYTE const *buffer, size_t len) {
+void Record_deserialize(Record *dest, ubyte const *buffer, int len) {
     long num;
 
     memcpy(dest->name, buffer, STRLEN);
@@ -48,6 +51,8 @@ void isam_deserialize(Record *dest, UBYTE const *buffer, size_t len) {
 
 int main(int argc, char const *argv[])
 {
+    int i, result;
+
     Record daten1 = {
         .name = "Simon",
         .daten = 0x12345678,
@@ -76,16 +81,16 @@ int main(int argc, char const *argv[])
         exit(1);
     }
 
-    isam_write(1, 1, &daten1, 38);
-    isam_write(1, 2, &daten2, 38);
-    isam_write(1, 3, &daten3, 38);
-    isam_write(1, 4, &daten4, 38);
+    isam_write(1, 1, &daten1, Record_serialize);
+    isam_write(1, 2, &daten2, Record_serialize);
+    isam_write(1, 3, &daten3, Record_serialize);
+    isam_write(1, 4, &daten4, Record_serialize);
 
     isam_close(1);
 
     isam_open(1,"test.dat", 38);
-    for (int i=1; i<=4; i++) {
-        int result = isam_read(1, i, &daten1, 38);
+    for (i=0; i<4; i++) {
+        result = isam_read(1, i, &daten1, Record_deserialize);
         if (!result) {
             printf("Record %d:\n", i);
             printf("  - name = %30s\n", daten1.name);
@@ -93,7 +98,7 @@ int main(int argc, char const *argv[])
             printf("  - zahl = %ld\n", daten1.zahl);
             printf("---------------------\n");
         } else {
-            printf("!!! Error on Record %d\n", i+1);
+            printf("!!! Error on Record %d - Error = %d\n", i, result);
         }
 
     }
