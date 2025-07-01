@@ -2,51 +2,34 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "include/isam.h"
+#include "isam.h"
+#include "serialize.h"
 
 #define STRLEN 30
 
 typedef struct {
     char name[STRLEN];
-    long zahl;
-    long daten;
+    int zahl;
+    int daten;
 } Record;
 
 
-void Record_serialize(Record const *src, ubyte *buffer, int len) {
-    long num;
+void Record_serialize(void const *src, unsigned char *buffer, int len) {   //int len might not be necessary?
+    const Record *rec = (Record*)src;
 
-    memcpy(buffer, src->name, STRLEN);
+    memcpy(buffer, rec->name, STRLEN);
 
-    num = src->daten;
-    buffer[STRLEN+0] = num & 0xFF;
-    buffer[STRLEN+1] = (num >>8 ) & 0xFF;
-    buffer[STRLEN+2] = (num >>16) & 0xFF;
-    buffer[STRLEN+3] = (num >>24) & 0xFF;
-
-    num = src->zahl;
-    buffer[STRLEN+4] = num & 0xFF;
-    buffer[STRLEN+5] = (num >>8 ) & 0xFF;
-    buffer[STRLEN+6] = (num >>16) & 0xFF;
-    buffer[STRLEN+7] = (num >>24) & 0xFF;
+    serialize_int(rec->daten, buffer+STRLEN);
+    serialize_int(rec->zahl,  buffer+STRLEN+4);
 }
 
-void Record_deserialize(Record *dest, ubyte const *buffer, int len) {
-    long num;
+void Record_deserialize(void *dest, unsigned char const *buffer, int len) {   //int len might not be necessary?
+    Record *rec = (Record *)dest;
 
-    memcpy(dest->name, buffer, STRLEN);
+    memcpy(rec->name, buffer, STRLEN);
 
-    num = buffer[STRLEN+0];
-    num = num + (buffer[STRLEN+1] << 8);
-    num = num + (buffer[STRLEN+2] << 16);
-    num = num + (buffer[STRLEN+3] << 24);
-    dest->daten = num;
-
-    num = buffer[STRLEN+4];
-    num = num + (buffer[STRLEN+5] << 8);
-    num = num + (buffer[STRLEN+6] << 16);
-    num = num + (buffer[STRLEN+7] << 24);
-    dest->zahl = num;
+    deserialize_int(&(rec->daten), buffer+STRLEN);
+    deserialize_int(&(rec->zahl), buffer+STRLEN+4);
 }
 
 int main(int argc, char const *argv[])
@@ -77,28 +60,26 @@ int main(int argc, char const *argv[])
         .zahl  = 00110011
     };
 
-    if (isam_open(1, "test.dat", 38)) {
+    if (isam_open(1, "mydata", 38)) {
         exit(1);
     }
 
-    isam_write(1, 1, &daten1, Record_serialize);
-    isam_write(1, 2, &daten2, Record_serialize);
-    isam_write(1, 3, &daten3, Record_serialize);
-    isam_write(1, 4, &daten4, Record_serialize);
+    isam_write(1, 0, &daten1, Record_serialize);
+    isam_write(1, 1, &daten2, Record_serialize);
+    isam_write(1, 2, &daten3, Record_serialize);
+    isam_write(1, 3, &daten4, Record_serialize);
+    isam_delete(1, 2);
 
-    isam_close(1);
-
-    isam_open(1,"test.dat", 38);
     for (i=0; i<4; i++) {
         result = isam_read(1, i, &daten1, Record_deserialize);
         if (!result) {
             printf("Record %d:\n", i);
             printf("  - name = %30s\n", daten1.name);
-            printf("  - daten= %ld\n", daten1.daten);
-            printf("  - zahl = %ld\n", daten1.zahl);
+            printf("  - daten= %d\n", daten1.daten);
+            printf("  - zahl = %d\n", daten1.zahl);
             printf("---------------------\n");
         } else {
-            printf("!!! Error on Record %d - Error = %d\n", i, result);
+            printf("!!! Error on Record %d - Error = %d (%s)\n", i, result, isam_error(result));
         }
 
     }

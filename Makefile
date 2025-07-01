@@ -1,13 +1,13 @@
 # compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c89 -Iinclude -MMD -MP
+CFLAGS = -Wall -std=c99 -MMD -MP
 DEBUG = -g -DDEBUG=1
 
 # Zielprogramm
 TARGET = main
 
 #
-SOURCES = main.c src/isam.c
+SOURCES = main.c isam.c serialize.c
 OBJECTS = $(SOURCES:.c=.o)
 DEPS = $(SOURCES:.c=.d)
 
@@ -28,7 +28,6 @@ clean:
 	-rm *.o
 	-rm $(TARGET)
 	-rm *.d
-	-rm src/*.o
-	-rm src/*.d
+	-rm mydata*
 
 -include $(DEPS)
